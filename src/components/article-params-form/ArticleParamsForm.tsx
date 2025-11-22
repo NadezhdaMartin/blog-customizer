@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { Text } from 'src/ui/text';
 import { Select } from 'src/ui/select';
 import {
+	ArticleStateType,
 	backgroundColors,
 	contentWidthArr,
 	defaultArticleState,
@@ -35,44 +36,63 @@ export const ArticleParamsForm = ({
 		setIsFormOpen(!isFormOpen);
 	};
 
-	const handleClickOutside = (event: MouseEvent) => {
-		if (formRef.current && !formRef.current.contains(event.target as Node)) {
-			setIsFormOpen(false);
-		}
+	type UseCloseOnOutsideClickOrEsc = {
+		isOpenElement: boolean; // Флаг, открыт ли элемент (например, модальное окно или форма)
+		onClose?: () => void; // Колбэк, вызываемый при закрытии
+		elementRef: React.RefObject<HTMLElement>; // Ссылка на DOM-элемент, вне которого отслеживаем клик
 	};
 
-	useEffect(() => {
-		if (isFormOpen) {
-			document.addEventListener('mousedown', handleClickOutside);
-		} else {
-			document.removeEventListener('mousedown', handleClickOutside);
-		}
+	const useCloseOnOutsideClickOrEsc = ({
+		isOpenElement,
+		elementRef,
+		onClose,
+	}: UseCloseOnOutsideClickOrEsc) => {
+		useEffect(() => {
+			if (!isOpenElement) {
+				return;
+			}
 
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
+			const handleClick = (event: MouseEvent) => {
+				// Если клик был вне элемента — вызываем onClose
+				if (
+					event.target instanceof Node &&
+					elementRef.current &&
+					!elementRef.current.contains(event.target)
+				) {
+					onClose?.();
+				}
+			};
+
+			const handleKeyDown = (event: KeyboardEvent) => {
+				// Закрытие по нажатию Escape
+				if (event.key === 'Escape') {
+					onClose?.();
+				}
+			};
+
+			// Добавляем обработчики
+			window.addEventListener('mousedown', handleClick);
+			window.addEventListener('keydown', handleKeyDown);
+
+			// Убираем обработчики при размонтировании или изменении зависимостей
+			return () => {
+				window.removeEventListener('mousedown', handleClick);
+				window.removeEventListener('keydown', handleKeyDown);
+			};
+		}, [isOpenElement, elementRef, onClose]);
+	};
+
+	useCloseOnOutsideClickOrEsc({
+		isOpenElement: isFormOpen,
+		elementRef: formRef,
+		onClose: () => setIsFormOpen(false),
+	});
+
+	const updateFormField = (field: keyof ArticleStateType) => {
+		return (value: OptionType) => {
+			setFormState({ ...formState, [field]: value });
 		};
-	}, [isFormOpen]);
-
-	useEffect(() => {
-		if (isFormOpen) {
-			setFormState(appliedParams);
-		}
-	}, [isFormOpen, appliedParams]);
-
-	const handleFontChange = (option: OptionType) =>
-		setFormState((prev) => ({ ...prev, fontFamilyOption: option }));
-
-	const handleFontSizeChange = (option: OptionType) =>
-		setFormState((prev) => ({ ...prev, fontSizeOption: option }));
-
-	const handleFontColorChange = (option: OptionType) =>
-		setFormState((prev) => ({ ...prev, fontColor: option }));
-
-	const handleBackgroundColorChange = (option: OptionType) =>
-		setFormState((prev) => ({ ...prev, backgroundColor: option }));
-
-	const handleContentWidthChange = (option: OptionType) =>
-		setFormState((prev) => ({ ...prev, contentWidth: option }));
+	};
 
 	const handleApply = (event: React.FormEvent) => {
 		event.preventDefault();
@@ -101,33 +121,33 @@ export const ArticleParamsForm = ({
 						options={fontFamilyOptions}
 						title='Шрифт'
 						selected={formState.fontFamilyOption}
-						onChange={handleFontChange}
+						onChange={updateFormField('fontFamilyOption')}
 					/>
 					<RadioGroup
 						options={fontSizeOptions}
 						title='Размер шрифта'
 						name='fontSize'
 						selected={formState.fontSizeOption}
-						onChange={handleFontSizeChange}
+						onChange={updateFormField('fontSizeOption')}
 					/>
 					<Select
 						options={fontColors}
 						title='Цвет шрифта'
 						selected={formState.fontColor}
-						onChange={handleFontColorChange}
+						onChange={updateFormField('fontColor')}
 					/>
 					<Separator />
 					<Select
 						options={backgroundColors}
 						title='Цвет фона'
 						selected={formState.backgroundColor}
-						onChange={handleBackgroundColorChange}
+						onChange={updateFormField('backgroundColor')}
 					/>
 					<Select
 						options={contentWidthArr}
 						title='Ширина контента'
 						selected={formState.contentWidth}
-						onChange={handleContentWidthChange}
+						onChange={updateFormField('contentWidth')}
 					/>
 					<div className={styles.bottomContainer}>
 						<Button
